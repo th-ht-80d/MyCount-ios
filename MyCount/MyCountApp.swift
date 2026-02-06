@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct MyCountApp: App {
+    @StateObject private var store = CountdownStore()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(store)
         }
     }
 }

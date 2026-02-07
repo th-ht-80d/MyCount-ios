@@ -22,16 +22,25 @@ struct CountdownDetailView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 if store.item(for: itemId) != nil {
-                    Button("編集") {
+                    Button {
                         isEditorPresented = true
+                    } label: {
+                        Image(systemName: "square.and.pencil")
                     }
                 }
             }
         }
-        .sheet(isPresented: $isEditorPresented) {
-            if let item = store.item(for: itemId) {
-                CountdownEditorView(item: item)
-            }
+        .navigationDestination(isPresented: $isEditorPresented) {
+            editorDestination
+        }
+    }
+
+    @ViewBuilder
+    private var editorDestination: some View {
+        if let item = store.item(for: itemId) {
+            CountdownEditorView(item: item)
+        } else {
+            Text("データが存在しません")
         }
     }
 

@@ -40,92 +40,98 @@ struct CountdownEditorView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("タイトル") {
-                    TextField("タイトルを入力", text: $title)
-                        .textInputAutocapitalization(.words)
-                        .onChange(of: title) { _ in
-                            titleError = nil
-                        }
-                    if let titleError {
-                        Text(titleError)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+        Form {
+            Section("タイトル") {
+                TextField("タイトルを入力", text: $title)
+                    .textInputAutocapitalization(.words)
+                    .onChange(of: title) { _ in
+                        titleError = nil
+                    }
+                if let titleError {
+                    Text(titleError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+
+            Section("日時") {
+                DatePicker("日付", selection: dateBinding, displayedComponents: [.date])
+                    .disabled(!isDateTimeEditable)
+                DatePicker("時間", selection: timeBinding, displayedComponents: [.hourAndMinute])
+                    .disabled(!isDateTimeEditable)
+            }
+
+            Section("カウント方法") {
+                Picker("カウント方法", selection: $countMode) {
+                    ForEach(CountMode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
                     }
                 }
+                .pickerStyle(.segmented)
+            }
 
-                Section("日時") {
-                    DatePicker("日付", selection: dateBinding, displayedComponents: [.date])
-                    DatePicker("時間", selection: timeBinding, displayedComponents: [.hourAndMinute])
-                }
-
-                Section("カウント方法") {
-                    Picker("カウント方法", selection: $countMode) {
-                        ForEach(CountMode.allCases, id: \.self) { mode in
-                            Text(mode.title).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-
-                Section("サンプル画像") {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(CountdownImageSamples.samples) { sample in
-                                SampleImageCell(
-                                    sample: sample,
-                                    isSelected: sample.id == selectedImageId
-                                ) {
-                                    selectedImageId = sample.id
-                                }
+            Section("サンプル画像") {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(CountdownImageSamples.samples) { sample in
+                            SampleImageCell(
+                                sample: sample,
+                                isSelected: sample.id == selectedImageId
+                            ) {
+                                selectedImageId = sample.id
                             }
                         }
-                        .padding(.vertical, 4)
                     }
+                    .padding(.vertical, 4)
                 }
+            }
 
-                if originalItem != nil {
-                    Section {
-                        Button("削除", role: .destructive) {
-                            showDeleteAlert = true
-                        }
+            if originalItem != nil {
+                Section {
+                    Button("削除", role: .destructive) {
+                        showDeleteAlert = true
                     }
                 }
-            }
-            .navigationTitle(originalItem == nil ? "新規" : "編集")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") {
-                        handleCancel()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
-                        handleSave()
-                    }
-                }
-            }
-            .alert("編集内容を破棄しますか？", isPresented: $showDiscardAlert) {
-                Button("閉じる", role: .destructive) {
-                    dismiss()
-                }
-                Button("続ける", role: .cancel) {}
-            } message: {
-                Text("保存せずに閉じると変更は失われます。")
-            }
-            .alert("本当に削除しますか？", isPresented: $showDeleteAlert) {
-                Button("削除", role: .destructive) {
-                    if let originalItem {
-                        store.delete(ids: Set([originalItem.id]))
-                    }
-                    dismiss()
-                }
-                Button("キャンセル", role: .cancel) {}
-            } message: {
-                Text("このカウントダウンは復元できません。")
             }
         }
+        .navigationTitle(originalItem == nil ? "新規" : "編集")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("キャンセル") {
+                    handleCancel()
+                }
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("保存") {
+                    handleSave()
+                }
+            }
+        }
+        .alert("編集内容を破棄しますか？", isPresented: $showDiscardAlert) {
+            Button("閉じる", role: .destructive) {
+                dismiss()
+            }
+            Button("続ける", role: .cancel) {}
+        } message: {
+            Text("保存せずに閉じると変更は失われます。")
+        }
+        .alert("本当に削除しますか？", isPresented: $showDeleteAlert) {
+            Button("削除", role: .destructive) {
+                if let originalItem {
+                    store.delete(ids: Set([originalItem.id]))
+                }
+                dismiss()
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("このカウントダウンは復元できません。")
+        }
+    }
+
+    private var isDateTimeEditable: Bool {
+        countMode == .countdown
     }
 
     private var dateBinding: Binding<Date> {

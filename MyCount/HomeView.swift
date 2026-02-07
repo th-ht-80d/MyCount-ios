@@ -9,52 +9,41 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var store: CountdownStore
-    @Environment(\.editMode) private var editMode
-    @State private var selection = Set<UUID>()
+    @State private var selectedIds = Set<UUID>()
+    @State private var isSelectionMode = false
     @State private var isEditorPresented = false
+    @State private var isSettingsPresented = false
 
     var body: some View {
         NavigationStack {
             TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                content(now: timeline.date)
+                ZStack(alignment: .bottomTrailing) {
+                    content(now: timeline.date)
+                    floatingActionButton
+                }
             }
             .navigationTitle("ホーム")
-            .navigationDestination(for: UUID.self) { id in
-                CountdownDetailView(itemId: id)
-            }
-            .toolbar { toolbarContent }
-            .sheet(isPresented: $isEditorPresented) {
+            .navigationDestination(isPresented: $isEditorPresented) {
                 CountdownEditorView(item: nil)
             }
-            .onChange(of: editMode?.wrappedValue.isEditing ?? false) { isEditing in
-                if !isEditing {
-                    selection.removeAll()
+            .sheet(isPresented: $isSettingsPresented) {
+                SettingsPlaceholderView()
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        isSettingsPresented = true
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                    }
                 }
-            }
-        }
-    }
-
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .navigationBarLeading) {
-            if !store.items.isEmpty {
-                EditButton()
-            }
-        }
-        ToolbarItem(placement: .navigationBarTrailing) {
-            Button {
-                isEditorPresented = true
-            } label: {
-                Image(systemName: "plus")
-            }
-        }
-        ToolbarItem(placement: .bottomBar) {
-            if editMode?.wrappedValue.isEditing == true {
-                Button("削除") {
-                    store.delete(ids: selection)
-                    selection.removeAll()
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if !store.items.isEmpty {
+                        Button(isSelectionMode ? "キャンセル" : "選択") {
+                            toggleSelectionMode()
+                        }
+                    }
                 }
-                .disabled(selection.isEmpty)
             }
         }
     }
@@ -65,29 +54,108 @@ struct HomeView: View {
             VStack(spacing: 12) {
                 Text("まだイベントがありません")
                     .font(.title2)
-                Text("右上の＋ボタンから作成してください")
+                Text("右下の＋ボタンから作成してください")
                     .font(.body)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(32)
         } else {
-            List(selection: $selection) {
-                ForEach(store.items) { item in
-                    NavigationLink(value: item.id) {
-                        CountdownCardView(item: item, now: now)
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    ForEach(store.items) { item in
+                        if isSelectionMode {
+                            CountdownCardView(
+                                item: item,
+                                now: now,
+                                selectionMode: true,
+                                selected: selectedIds.contains(item.id)
+                            )
+                            .onTapGesture {
+                                toggleItemSelection(id: item.id)
+                            }
+                        } else {
+                            NavigationLink(destination: CountdownDetailView(itemId: item.id)) {
+                                CountdownCardView(
+                                    item: item,
+                                    now: now,
+                                    selectionMode: false,
+                                    selected: false
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
-                .onDelete(perform: store.delete)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 16)
             }
-            .listStyle(.plain)
         }
+    }
+
+    @ViewBuilder
+    private var floatingActionButton: some View {
+        if isSelectionMode {
+            Button {
+                deleteSelected()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "trash.fill")
+                    Text("削除")
+                        .fontWeight(.semibold)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .foregroundStyle(selectedIds.isEmpty ? Color.secondary : Color.white)
+                .background(selectedIds.isEmpty ? Color(.systemGray5) : Color.accentColor)
+                .clipShape(Capsule())
+            }
+            .disabled(selectedIds.isEmpty)
+            .padding(.trailing, 20)
+            .padding(.bottom, 20)
+        } else {
+            Button {
+                isEditorPresented = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(Color.white)
+                    .frame(width: 56, height: 56)
+                    .background(Color.accentColor)
+                    .clipShape(Circle())
+            }
+            .padding(.trailing, 20)
+            .padding(.bottom, 20)
+        }
+    }
+
+    private func toggleSelectionMode() {
+        isSelectionMode.toggle()
+        if !isSelectionMode {
+            selectedIds.removeAll()
+        }
+    }
+
+    private func toggleItemSelection(id: UUID) {
+        if selectedIds.contains(id) {
+            selectedIds.remove(id)
+        } else {
+            selectedIds.insert(id)
+        }
+    }
+
+    private func deleteSelected() {
+        store.delete(ids: selectedIds)
+        selectedIds.removeAll()
+        isSelectionMode = false
     }
 }
 
 private struct CountdownCardView: View {
     let item: CountdownItem
     let now: Date
+    let selectionMode: Bool
+    let selected: Bool
 
     private var summary: CountdownSummary {
         CountdownTimeFormatter.summary(for: item, now: now)
@@ -95,6 +163,9 @@ private struct CountdownCardView: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            if selectionMode {
+                SelectionIndicator(selected: selected)
+            }
             CountdownThumbnailView(item: item)
                 .frame(width: 70, height: 70)
             VStack(alignment: .leading, spacing: 4) {
@@ -108,7 +179,9 @@ private struct CountdownCardView: View {
             Spacer()
             CountdownSummaryView(summary: summary)
         }
-        .padding(.vertical, 8)
+        .padding(12)
+        .background(Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 
@@ -157,6 +230,48 @@ private struct CountdownThumbnailView: View {
             .resizable()
             .scaledToFill()
             .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+private struct SelectionIndicator: View {
+    let selected: Bool
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.secondary.opacity(0.7), lineWidth: 2)
+                .frame(width: 30, height: 30)
+            if selected {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
+    }
+}
+
+private struct SettingsPlaceholderView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 12) {
+                Text("設定画面は未実装です")
+                    .font(.headline)
+                Text("Android版に合わせて後続で追加できます。")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(24)
+            .navigationTitle("設定")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("閉じる") {
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -27,7 +27,13 @@ final class CountdownStore: ObservableObject {
         items.first { $0.id == id }
     }
 
-    func add(title: String, targetDate: Date, countMode: CountMode, imageId: String) {
+    func add(
+        title: String,
+        targetDate: Date,
+        countMode: CountMode,
+        imageId: String,
+        customImageData: Data?
+    ) {
         let now = Date()
         let newItem = CountdownItem(
             id: UUID(),
@@ -36,6 +42,7 @@ final class CountdownStore: ObservableObject {
             createdAt: now,
             updatedAt: now,
             imageId: imageId,
+            customImageData: customImageData,
             countMode: countMode
         )
         items.append(newItem)
@@ -43,7 +50,14 @@ final class CountdownStore: ObservableObject {
         save()
     }
 
-    func update(id: UUID, title: String, targetDate: Date, countMode: CountMode, imageId: String) {
+    func update(
+        id: UUID,
+        title: String,
+        targetDate: Date,
+        countMode: CountMode,
+        imageId: String,
+        customImageData: Data?
+    ) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         var updated = items[index]
         updated.title = title
@@ -51,6 +65,7 @@ final class CountdownStore: ObservableObject {
         updated.updatedAt = Date()
         updated.countMode = countMode
         updated.imageId = imageId
+        updated.customImageData = customImageData
         items[index] = updated
         sortItems()
         save()
@@ -69,6 +84,36 @@ final class CountdownStore: ObservableObject {
             }
         }
         save()
+    }
+
+    func rollOverExpiredCountdowns(referenceDate now: Date) {
+        let calendar = Calendar.current
+        var hasChanges = false
+
+        for index in items.indices {
+            guard items[index].countMode == .countdown else { continue }
+            guard items[index].targetDate <= now else { continue }
+
+            var nextTarget = items[index].targetDate
+            while nextTarget <= now {
+                if let shifted = calendar.date(byAdding: .year, value: 1, to: nextTarget) {
+                    nextTarget = shifted
+                } else {
+                    nextTarget = nextTarget.addingTimeInterval(31_536_000)
+                }
+            }
+
+            if nextTarget != items[index].targetDate {
+                items[index].targetDate = nextTarget
+                items[index].updatedAt = now
+                hasChanges = true
+            }
+        }
+
+        if hasChanges {
+            sortItems()
+            save()
+        }
     }
 
     // MARK: - Private

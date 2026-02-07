@@ -25,7 +25,7 @@ struct CountdownDetailView: View {
                     Button {
                         isEditorPresented = true
                     } label: {
-                        Image(systemName: "square.and.pencil")
+                        Image(systemName: "pencil")
                     }
                 }
             }
@@ -67,18 +67,22 @@ struct CountdownDetailView: View {
                         DetailInfoBlock(
                             title: item.countMode == .countup ? "経過日数" : "残り日数",
                             value: detail.remainingForDateTab,
-                            accent: item.countMode == .countup || !detail.expired
+                            accent: item.countMode == .countup || !detail.expired,
+                            titleFont: .footnote,
+                            valueFont: .system(size: 26, weight: .semibold)
                         )
                         DetailInfoBlock(
                             title: "本日の日付が変わるまで",
-                            value: detail.untilMidnight
+                            value: detail.untilMidnight,
+                            titleFont: .footnote,
+                            valueFont: .system(size: 26, weight: .semibold)
                         )
                     } else {
                         DetailInfoBlock(
                             title: item.countMode == .countup ? "経過時間" : "残り時間",
                             value: detail.remainingForTimeTab,
                             accent: item.countMode == .countup || !detail.expired,
-                            valueFont: .largeTitle
+                            valueFont: .system(size: 40, weight: .semibold)
                         )
                     }
                 }
@@ -96,16 +100,17 @@ private struct DetailInfoBlock: View {
     let title: String
     let value: String
     var accent: Bool = false
+    var titleFont: Font = .caption
     var valueFont: Font = .title2
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.caption)
+                .font(titleFont)
                 .foregroundStyle(.secondary)
             Text(value)
                 .font(valueFont)
-                .foregroundStyle(accent ? Color.accentColor : Color.primary)
+                .foregroundStyle(accent ? AppPalette.countdownAccent : Color.primary)
         }
     }
 }

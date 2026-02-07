@@ -28,5 +28,6 @@ struct CountdownItem: Identifiable, Codable, Equatable {
     var createdAt: Date
     var updatedAt: Date
     var imageId: String
+    var customImageData: Data?
     var countMode: CountMode
 }

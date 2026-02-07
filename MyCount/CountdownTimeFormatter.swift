@@ -35,7 +35,7 @@ enum CountdownTimeFormatter {
     private static let dateWithDayFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "yyyy年M月d日 EEEE"
+        formatter.dateFormat = "yyyy年M月d日 (E)"
         return formatter
     }()
     private static let timeFormatter: DateFormatter = {

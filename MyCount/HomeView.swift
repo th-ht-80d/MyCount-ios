@@ -5,7 +5,9 @@
 //  Created by Codex on 2025/02/05.
 //
 
+import Combine
 import SwiftUI
+import UIKit
 
 struct HomeView: View {
     @EnvironmentObject private var store: CountdownStore
@@ -13,14 +15,14 @@ struct HomeView: View {
     @State private var isSelectionMode = false
     @State private var isEditorPresented = false
     @State private var isSettingsPresented = false
+    @State private var now = Date()
+    private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         NavigationStack {
-            TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                ZStack(alignment: .bottomTrailing) {
-                    content(now: timeline.date)
-                    floatingActionButton
-                }
+            ZStack(alignment: .bottomTrailing) {
+                content(now: now)
+                floatingActionButton
             }
             .navigationTitle("ホーム")
             .navigationDestination(isPresented: $isEditorPresented) {
@@ -44,6 +46,13 @@ struct HomeView: View {
                         }
                     }
                 }
+            }
+            .onAppear {
+                store.rollOverExpiredCountdowns(referenceDate: now)
+            }
+            .onReceive(ticker) { current in
+                now = current
+                store.rollOverExpiredCountdowns(referenceDate: current)
             }
         }
     }
@@ -106,13 +115,13 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .foregroundStyle(selectedIds.isEmpty ? Color.secondary : Color.white)
-                .background(selectedIds.isEmpty ? Color(.systemGray5) : Color.accentColor)
+                .foregroundStyle(Color.white.opacity(selectedIds.isEmpty ? 0.75 : 1.0))
+                .background(selectedIds.isEmpty ? Color(.systemGray4) : Color.accentColor)
                 .clipShape(Capsule())
             }
             .disabled(selectedIds.isEmpty)
             .padding(.trailing, 20)
-            .padding(.bottom, 20)
+            .padding(.bottom, 36)
         } else {
             Button {
                 isEditorPresented = true
@@ -125,7 +134,7 @@ struct HomeView: View {
                     .clipShape(Circle())
             }
             .padding(.trailing, 20)
-            .padding(.bottom, 20)
+            .padding(.bottom, 50)
         }
     }
 
@@ -167,14 +176,16 @@ private struct CountdownCardView: View {
                 SelectionIndicator(selected: selected)
             }
             CountdownThumbnailView(item: item)
-                .frame(width: 70, height: 70)
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
                     .font(.headline)
                     .lineLimit(1)
                 Text(CountdownTimeFormatter.dateWithDayText(item.targetDate))
-                    .font(.subheadline)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .allowsTightening(true)
             }
             Spacer()
             CountdownSummaryView(summary: summary)
@@ -192,20 +203,37 @@ private struct CountdownSummaryView: View {
         if summary.expired {
             return .secondary
         }
-        if summary.isCritical {
-            return .orange
+        return AppPalette.countdownAccent
+    }
+
+    private var countdownFont: Font {
+        if summary.showDayUnit {
+            return .system(size: 31, weight: .semibold)
         }
-        return .green
+        let isHms = summary.countdownText.split(separator: ":").count == 3
+        return isHms ? .system(size: 29, weight: .semibold) : .system(size: 32, weight: .semibold)
+    }
+
+    private var countdownWidth: CGFloat {
+        if summary.showDayUnit {
+            return 118
+        }
+        let isHms = summary.countdownText.split(separator: ":").count == 3
+        return isHms ? 136 : 124
     }
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(alignment: .trailing, spacing: 4) {
             Text(summary.headerText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            HStack(alignment: .bottom, spacing: 4) {
+            HStack(alignment: .lastTextBaseline, spacing: 4) {
                 Text(summary.countdownText)
-                    .font(summary.showDayUnit ? .title2 : .headline)
+                    .font(countdownFont)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                    .allowsTightening(true)
                     .foregroundStyle(valueColor)
                 if summary.showDayUnit {
                     Text("日")
@@ -213,9 +241,11 @@ private struct CountdownSummaryView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .frame(width: countdownWidth, alignment: .trailing)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .frame(minWidth: countdownWidth + 16, alignment: .center)
         .background(Color(.systemGray6))
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
@@ -225,11 +255,22 @@ private struct CountdownThumbnailView: View {
     let item: CountdownItem
 
     var body: some View {
-        let sample = CountdownImageSamples.find(id: item.imageId)
-        Image(sample.assetName)
-            .resizable()
-            .scaledToFill()
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+        if let data = item.customImageData, let image = UIImage(data: data) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 70, height: 70)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+        } else {
+            let sample = CountdownImageSamples.find(id: item.imageId)
+            Image(sample.assetName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 70, height: 70)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
     }
 }
 
